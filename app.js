@@ -32,183 +32,179 @@ const syncScroll   = $('sync-scroll');
 const fileInput    = $('file-input');
 
 /* ================================================================
-   1. BBCode → HTML PARSER
+   0. MODE STATE
    ================================================================ */
 
-/**
- * Convert a BBCode string to safe HTML for the preview panel.
- * Handles all NationStates-specific tags from the dispatch guide.
- */
+let currentMode = 'dispatch'; // 'dispatch' | 'forum'
+
+function setMode(mode) {
+  currentMode = mode;
+  document.body.classList.toggle('mode-forum',    mode === 'forum');
+  document.body.classList.toggle('mode-dispatch', mode === 'dispatch');
+
+  document.querySelectorAll('.mode-tab').forEach(t =>
+    t.classList.toggle('active', t.dataset.mode === mode)
+  );
+
+  const hint = $('mode-hint');
+  const badge = $('editor-mode-badge');
+  if (mode === 'forum') {
+    hint.textContent  = 'Forum mode — phpBB tags, no dispatch-only blocks';
+    badge.textContent = 'Forum';
+  } else {
+    hint.textContent  = 'Dispatch mode — all NS tags available';
+    badge.textContent = 'Dispatch';
+  }
+
+  localStorage.setItem('ns-bbcode-mode', mode);
+  triggerUpdate();
+  setStatus(`Switched to ${mode} mode`);
+}
+
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => setMode(tab.dataset.mode));
+});
+
+
+
+/* ================================================================
+   1. BBCode → HTML PARSERS
+   ================================================================ */
+
+/** Route to the correct parser based on current mode. */
 function bbcodeToHtml(raw) {
-  // Escape raw HTML entities first so user input can't inject markup
-  let s = raw
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return currentMode === 'forum' ? bbcodeForumToHtml(raw) : bbcodeDispatchToHtml(raw);
+}
 
-  /* ── self-closing / simple replacement ─────────────────────── */
+/* ── shared escaping ─────────────────────────────────────────── */
+function escapeInput(raw) {
+  return raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ── shared tags present in both modes ──────────────────────── */
+function applySharedTags(s) {
   s = s.replace(/\[hr\]/gi, '<hr>');
-
-  /* ── preformatted ───────────────────────────────────────────── */
-  // Protect [pre] content from further parsing
-  const preBlocks = [];
-  s = s.replace(/\[pre\]([\s\S]*?)\[\/pre\]/gi, (_, inner) => {
-    const idx = preBlocks.length;
-    preBlocks.push(`<pre>${inner}</pre>`);
-    return `\x00PRE${idx}\x00`;
-  });
-
-  /* ── inline formatting ──────────────────────────────────────── */
   s = s.replace(/\[b\]([\s\S]*?)\[\/b\]/gi,           '<strong>$1</strong>');
   s = s.replace(/\[i\]([\s\S]*?)\[\/i\]/gi,           '<em>$1</em>');
   s = s.replace(/\[u\]([\s\S]*?)\[\/u\]/gi,           '<u>$1</u>');
   s = s.replace(/\[strike\]([\s\S]*?)\[\/strike\]/gi, '<s>$1</s>');
   s = s.replace(/\[sup\]([\s\S]*?)\[\/sup\]/gi,       '<sup>$1</sup>');
   s = s.replace(/\[sub\]([\s\S]*?)\[\/sub\]/gi,       '<sub>$1</sub>');
-
-  /* ── size ───────────────────────────────────────────────────── */
-  s = s.replace(/\[size=(\d+)\]([\s\S]*?)\[\/size\]/gi, (_, pct, inner) => {
-    const em = (parseInt(pct, 10) / 100).toFixed(2);
-    return `<span style="font-size:${em}em">${inner}</span>`;
-  });
-
-  /* ── font ───────────────────────────────────────────────────── */
-  s = s.replace(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (_, font, inner) =>
-    `<span style="font-family:${sanitizeAttr(font)}">${inner}</span>`
-  );
-
-  /* ── colour ─────────────────────────────────────────────────── */
-  s = s.replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (_, col, inner) =>
-    `<span style="color:${sanitizeAttr(col)}">${inner}</span>`
-  );
-
-  /* ── background (inline highlight) ─────────────────────────── */
-  s = s.replace(/\[background=([^\]]+)\]([\s\S]*?)\[\/background\]/gi, (_, col, inner) =>
-    `<span style="background-color:${sanitizeAttr(col)}">${inner}</span>`
-  );
-
-  /* ── background-block ───────────────────────────────────────── */
-  s = s.replace(/\[background-block=([^\]]+)\]([\s\S]*?)\[\/background-block\]/gi, (_, col, inner) =>
-    `<span class="ns-bg-block" style="background-color:${sanitizeAttr(col)}">${inner}</span>`
-  );
-
-  /* ── alignment ──────────────────────────────────────────────── */
-  s = s.replace(/\[align=(left|right|center|justify)\]([\s\S]*?)\[\/align\]/gi, (_, dir, inner) =>
-    `<div class="ns-align-${dir}">${inner}</div>`
-  );
-
-  /* ── float ──────────────────────────────────────────────────── */
-  s = s.replace(/\[floatleft\]([\s\S]*?)\[\/floatleft\]/gi,
-    '<div class="ns-floatleft">$1</div><div class="ns-clearfix"></div>');
-  s = s.replace(/\[floatright\]([\s\S]*?)\[\/floatright\]/gi,
-    '<div class="ns-floatright">$1</div><div class="ns-clearfix"></div>');
-
-  /* ── tab / indent ───────────────────────────────────────────── */
-  s = s.replace(/\[tab=(\d+)\]([\s\S]*?)\[\/tab\]/gi, (_, px, inner) =>
-    `<span class="ns-tab" style="padding-left:${parseInt(px,10)}px">${inner}</span>`
-  );
-  // [tab] with no argument = 30px default
-  s = s.replace(/\[tab\]([\s\S]*?)\[\/tab\]/gi,
-    '<span class="ns-tab" style="padding-left:30px">$1</span>');
-
-  /* ── anchor ─────────────────────────────────────────────────── */
-  s = s.replace(/\[anchor=([^\]]+)\]([\s\S]*?)\[\/anchor\]/gi, (_, name, inner) =>
-    `<span id="${sanitizeAttr(name)}" class="ns-anchor">${inner}</span>`
-  );
-  // self-closing anchor
-  s = s.replace(/\[anchor=([^\]]+)\]/gi, (_, name) =>
-    `<span id="${sanitizeAttr(name)}" class="ns-anchor"></span>`
-  );
-
-  /* ── URL ────────────────────────────────────────────────────── */
-  // [url=href]label[/url]
+  s = s.replace(/\[size=(\d+)\]([\s\S]*?)\[\/size\]/gi, (_, pct, inner) =>
+    `<span style="font-size:${(parseInt(pct,10)/100).toFixed(2)}em">${inner}</span>`);
+  s = s.replace(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (_, f, inner) =>
+    `<span style="font-family:${sanitizeAttr(f)}">${inner}</span>`);
+  s = s.replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (_, c, inner) =>
+    `<span style="color:${sanitizeAttr(c)}">${inner}</span>`);
+  s = s.replace(/\[background=([^\]]+)\]([\s\S]*?)\[\/background\]/gi, (_, c, inner) =>
+    `<span style="background-color:${sanitizeAttr(c)}">${inner}</span>`);
+  s = s.replace(/\[align=(left|right|center|justify)\]([\s\S]*?)\[\/align\]/gi, (_, d, inner) =>
+    `<div class="ns-align-${d}">${inner}</div>`);
   s = s.replace(/\[url=([^\]]+)\]([\s\S]*?)\[\/url\]/gi, (_, href, label) =>
-    `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener">${label}</a>`
-  );
-  // [url]bare[/url]
+    `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener">${label}</a>`);
   s = s.replace(/\[url\]([\s\S]*?)\[\/url\]/gi, (_, href) =>
-    `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener">${href}</a>`
-  );
-
-  /* ── image ──────────────────────────────────────────────────── */
+    `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener">${href}</a>`);
   s = s.replace(/\[img\]([\s\S]*?)\[\/img\]/gi, (_, src) =>
-    `<img src="${sanitizeUrl(src)}" alt="image" loading="lazy">`
-  );
-
-  /* ── NS-specific links ──────────────────────────────────────── */
-  // [nation=short]Name[/nation] or [nation]Name[/nation]
-  s = s.replace(/\[nation(?:=[^\]]+)?\]([\s\S]*?)\[\/nation\]/gi, (_, name) => {
-    const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g, '_'));
-    return `<a class="ns-nation" href="https://www.nationstates.net/nation=${slug}" target="_blank" rel="noopener">${name}</a>`;
-  });
-  s = s.replace(/\[region(?:=[^\]]+)?\]([\s\S]*?)\[\/region\]/gi, (_, name) => {
-    const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g, '_'));
-    return `<a class="ns-region" href="https://www.nationstates.net/region=${slug}" target="_blank" rel="noopener">${name}</a>`;
-  });
-  s = s.replace(/\[proposal(?:=[^\]]+)?\]([\s\S]*?)\[\/proposal\]/gi, (_, id) =>
-    `<span class="ns-proposal">📜 WA Proposal: ${id}</span>`
-  );
-  s = s.replace(/\[resolution(?:=[^\]]+)?\]([\s\S]*?)\[\/resolution\]/gi, (_, id) =>
-    `<span class="ns-resolution">⚖️ WA Resolution: ${id}</span>`
-  );
-
-  /* ── box (nested boxes are flattened to their inner content) ── */
-  s = s.replace(/\[box\]([\s\S]*?)\[\/box\]/gi, (_, inner) => {
-    // Strip any [box]…[/box] tags that survived inside this one
-    const flat = inner.replace(/\[box\]([\s\S]*?)\[\/box\]/gi, '$1');
-    return `<div class="ns-box">${flat}</div>`;
-  });
-
-  /* ── sidebar (floated box, right-aligned) ───────────────────── */
-  s = s.replace(/\[sidebar\]([\s\S]*?)\[\/sidebar\]/gi,
-    '<div class="ns-sidebar">$1</div><div class="ns-clearfix"></div>');
-
-  /* ── quote ──────────────────────────────────────────────────── */
-  // [quote=nation;postId] or [quote=name] or [quote]
-  s = s.replace(/\[quote=([^\]]+)\]([\s\S]*?)\[\/quote\]/gi, (_, attr, inner) => {
-    const author = attr.split(';')[0];
-    return `<div class="ns-quote"><div class="ns-quote-author">${escHtml(author)} wrote:</div>${inner}</div>`;
-  });
-  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi,
-    '<div class="ns-quote">$1</div>');
-
-  /* ── spoiler ────────────────────────────────────────────────── */
-  s = s.replace(/\[spoiler=([^\]]+)\]([\s\S]*?)\[\/spoiler\]/gi, (_, label, inner) =>
-    spoilerHtml(label, inner)
-  );
-  s = s.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
-    spoilerHtml('Spoiler', inner)
-  );
-
-  /* ── lists ──────────────────────────────────────────────────── */
-  // Ordered with type
-  s = s.replace(/\[list=(\w+)\]([\s\S]*?)\[\/list\]/gi, (_, type, inner) => {
-    const typeMap = { '1':'1', 'A':'A', 'a':'a', 'I':'I', 'i':'i' };
-    const t = typeMap[type] || '1';
-    const items = inner.replace(/\[\*\]/g, '<li>');
-    return `<ol type="${t}">${items}</ol>`;
-  });
-  // Unordered
-  s = s.replace(/\[list\]([\s\S]*?)\[\/list\]/gi, (_, inner) => {
-    const items = inner.replace(/\[\*\]/g, '<li>');
-    return `<ul>${items}</ul>`;
-  });
-
-  /* ── tables ─────────────────────────────────────────────────── */
+    `<img src="${sanitizeUrl(src)}" alt="image" loading="lazy">`);
+  s = s.replace(/\[list=(\w+)\]([\s\S]*?)\[\/list\]/gi, (_, type, inner) =>
+    `<ol type="${{1:'1',A:'A',a:'a',I:'I',i:'i'}[type]||'1'}">${inner.replace(/\[\*\]/g,'<li>')}</ol>`);
+  s = s.replace(/\[list\]([\s\S]*?)\[\/list\]/gi, (_, inner) =>
+    `<ul>${inner.replace(/\[\*\]/g,'<li>')}</ul>`);
   s = s.replace(/\[table\]([\s\S]*?)\[\/table\]/gi, '<table>$1</table>');
   s = s.replace(/\[tr\]([\s\S]*?)\[\/tr\]/gi,       '<tr>$1</tr>');
   s = s.replace(/\[th\]([\s\S]*?)\[\/th\]/gi,       '<th>$1</th>');
   s = s.replace(/\[td\]([\s\S]*?)\[\/td\]/gi,       '<td>$1</td>');
-
-  /* ── Restore pre blocks ─────────────────────────────────────── */
-  s = s.replace(/\x00PRE(\d+)\x00/g, (_, i) => preBlocks[parseInt(i, 10)]);
-
-  /* ── newlines → <br> (outside block elements) ───────────────── */
-  // Only convert \n that aren't already inside HTML block tags
-  s = s.replace(/\n/g, '<br>');
-
   return s;
 }
+
+/* ================================================================
+   1a. DISPATCH PARSER
+   ================================================================ */
+function bbcodeDispatchToHtml(raw) {
+  let s = escapeInput(raw);
+  const preBlocks = [];
+  s = s.replace(/\[pre\]([\s\S]*?)\[\/pre\]/gi, (_, inner) => {
+    const idx = preBlocks.length; preBlocks.push(`<pre>${inner}</pre>`);
+    return `\x00PRE${idx}\x00`;
+  });
+  s = applySharedTags(s);
+  s = s.replace(/\[background-block=([^\]]+)\]([\s\S]*?)\[\/background-block\]/gi, (_, c, inner) =>
+    `<span class="ns-bg-block" style="background-color:${sanitizeAttr(c)}">${inner}</span>`);
+  s = s.replace(/\[floatleft\]([\s\S]*?)\[\/floatleft\]/gi,
+    '<div class="ns-floatleft">$1</div><div class="ns-clearfix"></div>');
+  s = s.replace(/\[floatright\]([\s\S]*?)\[\/floatright\]/gi,
+    '<div class="ns-floatright">$1</div><div class="ns-clearfix"></div>');
+  s = s.replace(/\[tab=(\d+)\]([\s\S]*?)\[\/tab\]/gi, (_, px, inner) =>
+    `<span class="ns-tab" style="padding-left:${parseInt(px,10)}px">${inner}</span>`);
+  s = s.replace(/\[tab\]([\s\S]*?)\[\/tab\]/gi,
+    '<span class="ns-tab" style="padding-left:30px">$1</span>');
+  s = s.replace(/\[anchor=([^\]]+)\]([\s\S]*?)\[\/anchor\]/gi, (_, name, inner) =>
+    `<span id="${sanitizeAttr(name)}" class="ns-anchor">${inner}</span>`);
+  s = s.replace(/\[anchor=([^\]]+)\]/gi, (_, name) =>
+    `<span id="${sanitizeAttr(name)}" class="ns-anchor"></span>`);
+  s = s.replace(/\[nation(?:=[^\]]+)?\]([\s\S]*?)\[\/nation\]/gi, (_, name) => {
+    const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g,'_'));
+    return `<a class="ns-nation" href="https://www.nationstates.net/nation=${slug}" target="_blank" rel="noopener">${name}</a>`;
+  });
+  s = s.replace(/\[region(?:=[^\]]+)?\]([\s\S]*?)\[\/region\]/gi, (_, name) => {
+    const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g,'_'));
+    return `<a class="ns-region" href="https://www.nationstates.net/region=${slug}" target="_blank" rel="noopener">${name}</a>`;
+  });
+  s = s.replace(/\[proposal(?:=[^\]]+)?\]([\s\S]*?)\[\/proposal\]/gi, (_, id) =>
+    `<span class="ns-proposal">📜 WA Proposal: ${id}</span>`);
+  s = s.replace(/\[resolution(?:=[^\]]+)?\]([\s\S]*?)\[\/resolution\]/gi, (_, id) =>
+    `<span class="ns-resolution">⚖️ WA Resolution: ${id}</span>`);
+  s = s.replace(/\[box\]([\s\S]*?)\[\/box\]/gi, (_, inner) =>
+    `<div class="ns-box">${inner.replace(/\[box\]([\s\S]*?)\[\/box\]/gi,'$1')}</div>`);
+  s = s.replace(/\[sidebar\]([\s\S]*?)\[\/sidebar\]/gi,
+    '<div class="ns-sidebar">$1</div><div class="ns-clearfix"></div>');
+  s = s.replace(/\[quote=([^\]]+)\]([\s\S]*?)\[\/quote\]/gi, (_, attr, inner) =>
+    `<div class="ns-quote"><div class="ns-quote-author">${escHtml(attr.split(';')[0])} wrote:</div>${inner}</div>`);
+  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi, '<div class="ns-quote">$1</div>');
+  s = s.replace(/\[spoiler=([^\]]+)\]([\s\S]*?)\[\/spoiler\]/gi, (_, label, inner) =>
+    spoilerHtml(label, inner));
+  s = s.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
+    spoilerHtml('Spoiler', inner));
+  s = s.replace(/\x00PRE(\d+)\x00/g, (_, i) => preBlocks[parseInt(i,10)]);
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
+/* ================================================================
+   1b. FORUM PARSER  (phpBB-style)
+   ================================================================ */
+function bbcodeForumToHtml(raw) {
+  let s = escapeInput(raw);
+  // Protect [code] content from inner parsing
+  const codeBlocks = [];
+  s = s.replace(/\[code\]([\s\S]*?)\[\/code\]/gi, (_, inner) => {
+    const idx = codeBlocks.length; codeBlocks.push(`<code>${inner}</code>`);
+    return `\x00CODE${idx}\x00`;
+  });
+  const preBlocks = [];
+  s = s.replace(/\[pre\]([\s\S]*?)\[\/pre\]/gi, (_, inner) => {
+    const idx = preBlocks.length; preBlocks.push(`<pre>${inner}</pre>`);
+    return `\x00PRE${idx}\x00`;
+  });
+  s = applySharedTags(s);
+  // [img=WxH]url[/img] — phpBB supports size param
+  s = s.replace(/\[img=(\d+)[xX×](\d+)\]([\s\S]*?)\[\/img\]/gi, (_, w, h, src) =>
+    `<img src="${sanitizeUrl(src)}" width="${w}" height="${h}" alt="image" loading="lazy" style="max-width:100%">`);
+  // Quote: phpBB uses [quote="Author"] double-quoted, or bare [quote=Author]
+  s = s.replace(/\[quote="([^"]+)"\]([\s\S]*?)\[\/quote\]/gi, (_, author, inner) =>
+    `<div class="ns-quote"><div class="ns-quote-author">${escHtml(author)} wrote:</div>${inner}</div>`);
+  s = s.replace(/\[quote=([^\]"]+)\]([\s\S]*?)\[\/quote\]/gi, (_, author, inner) =>
+    `<div class="ns-quote"><div class="ns-quote-author">${escHtml(author)} wrote:</div>${inner}</div>`);
+  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi, '<div class="ns-quote">$1</div>');
+  // Forum spoiler has no label
+  s = s.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
+    spoilerHtml('Spoiler', inner));
+  s = s.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i,10)]);
+  s = s.replace(/\x00PRE(\d+)\x00/g,  (_, i) => preBlocks[parseInt(i,10)]);
+  s = s.replace(/\n/g, '<br>');
+  return s;
+}
+
 
 /* ── helpers used by parser ─────────────────────────────────── */
 function sanitizeAttr(val) {
@@ -481,26 +477,41 @@ $('btn-img').addEventListener('click', () => {
 
 /* ── Quote button ───────────────────────────────────────────── */
 $('btn-quote').addEventListener('click', () => {
-  openModal('Insert Quote', `
-    <div class="modal-field">
-      <label class="modal-label">Author (nation name, optional)</label>
-      <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous quote">
-    </div>`, ({ quoteAuthor }) => {
-    const tag = quoteAuthor ? `[quote=${quoteAuthor}]` : '[quote]';
-    wrapSelection(tag, '[/quote]');
-  });
+  if (currentMode === 'forum') {
+    openModal('Insert Quote', `
+      <div class="modal-field">
+        <label class="modal-label">Author (optional)</label>
+        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous quote">
+      </div>`, ({ quoteAuthor }) => {
+      const tag = quoteAuthor ? `[quote="${quoteAuthor}"]` : '[quote]';
+      wrapSelection(tag, '[/quote]');
+    });
+  } else {
+    openModal('Insert Quote', `
+      <div class="modal-field">
+        <label class="modal-label">Author (nation name, optional)</label>
+        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous quote">
+      </div>`, ({ quoteAuthor }) => {
+      const tag = quoteAuthor ? `[quote=${quoteAuthor}]` : '[quote]';
+      wrapSelection(tag, '[/quote]');
+    });
+  }
 });
 
 /* ── Spoiler button ─────────────────────────────────────────── */
 $('btn-spoiler').addEventListener('click', () => {
-  openModal('Insert Spoiler', `
-    <div class="modal-field">
-      <label class="modal-label">Spoiler label</label>
-      <input class="modal-input" id="mf-spoiler-label" type="text" value="Spoiler" placeholder="Spoiler">
-    </div>`, ({ spoilerLabel }) => {
-    const label = spoilerLabel || 'Spoiler';
-    wrapSelection(`[spoiler=${label}]`, '[/spoiler]');
-  });
+  if (currentMode === 'forum') {
+    // Forum spoiler has no label
+    wrapSelection('[spoiler]', '[/spoiler]');
+  } else {
+    openModal('Insert Spoiler', `
+      <div class="modal-field">
+        <label class="modal-label">Spoiler label</label>
+        <input class="modal-input" id="mf-spoiler-label" type="text" value="Spoiler" placeholder="Spoiler">
+      </div>`, ({ spoilerLabel }) => {
+      wrapSelection(`[spoiler=${spoilerLabel || 'Spoiler'}]`, '[/spoiler]');
+    });
+  }
 });
 
 /* ── Bullet list ────────────────────────────────────────────── */
@@ -884,6 +895,11 @@ editor.addEventListener('input', saveToStorage);
     themeToggle.checked = true;
     themeToggle.closest('.toggle-wrap').querySelector('.toggle-label').textContent = 'Light';
   }
+
+  // Restore mode
+  const savedMode = localStorage.getItem('ns-bbcode-mode');
+  if (savedMode === 'forum') setMode('forum');
+  else setMode('dispatch');
 
   // Restore content
   loadFromStorage();

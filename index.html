@@ -31,6 +31,15 @@
   </header>
 
   <!-- ══════════════════════════════════════════════════════════════
+       MODE TABS
+  ══════════════════════════════════════════════════════════════════ -->
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-dispatch" data-mode="dispatch">Dispatch</button>
+    <button class="mode-tab"        id="tab-forum"    data-mode="forum">Forum</button>
+    <span class="mode-hint" id="mode-hint">Dispatch mode — all NS tags available</span>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════
        TOOLBAR
   ══════════════════════════════════════════════════════════════════ -->
   <div class="toolbar" id="toolbar">
@@ -45,6 +54,7 @@
       <button class="tb-btn" data-tag="sup"    title="Superscript [sup]">x²</button>
       <button class="tb-btn" data-tag="sub"    title="Subscript [sub]">x₂</button>
       <button class="tb-btn" data-tag="pre"    title="Preformatted [pre]">PRE</button>
+      <button class="tb-btn forum-only" data-tag="code" title="Code block [code] — forum only">Code</button>
     </div>
 
     <div class="toolbar-sep"></div>
@@ -122,14 +132,14 @@
     <div class="toolbar-sep"></div>
 
     <!-- ── Float & Indent ────────────────────────────────────────── -->
-    <div class="toolbar-group">
+    <div class="toolbar-group dispatch-only">
       <span class="toolbar-group-label">Float</span>
       <button class="tb-btn" data-wrap="[floatleft]"  data-wrapclose="[/floatleft]"  title="Float left [floatleft]">◧</button>
       <button class="tb-btn" data-wrap="[floatright]" data-wrapclose="[/floatright]" title="Float right [floatright]">◨</button>
       <button class="tb-btn tb-prompt" data-tag="tab" data-prompt="Indent pixels (e.g. 30)" data-default="30" title="Tab indent [tab=N]">⇥Tab</button>
     </div>
 
-    <div class="toolbar-sep"></div>
+    <div class="toolbar-sep dispatch-only"></div>
 
     <!-- ── Headings ──────────────────────────────────────────────── -->
     <div class="toolbar-group">
@@ -147,13 +157,13 @@
       <span class="toolbar-group-label">Link &amp; Media</span>
       <button class="tb-btn" id="btn-url"    title="Insert link [url=…]">URL</button>
       <button class="tb-btn" id="btn-img"    title="Insert image [img]">IMG</button>
-      <button class="tb-btn tb-prompt" data-tag="anchor" data-prompt="Anchor name" data-default="section1" title="Anchor [anchor=name]">⚓</button>
+      <button class="tb-btn dispatch-only tb-prompt" data-tag="anchor" data-prompt="Anchor name" data-default="section1" title="Anchor [anchor=name] — dispatch only">⚓</button>
     </div>
 
     <div class="toolbar-sep"></div>
 
     <!-- ── NS-Specific ───────────────────────────────────────────── -->
-    <div class="toolbar-group">
+    <div class="toolbar-group dispatch-only">
       <span class="toolbar-group-label">NS Links</span>
       <button class="tb-btn" id="btn-nation"     title="Wrap selection as Nation link [nation]…[/nation]">Nation</button>
       <button class="tb-btn" id="btn-region"     title="Wrap selection as Region link [region]…[/region]">Region</button>
@@ -161,13 +171,13 @@
       <button class="tb-btn tb-prompt" data-tag="resolution" data-prompt="Resolution (e.g. GA#1)" data-default="" title="WA Resolution [resolution]">Res</button>
     </div>
 
-    <div class="toolbar-sep"></div>
+    <div class="toolbar-sep dispatch-only"></div>
 
     <!-- ── Boxes & Quotes ────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Blocks</span>
-      <button class="tb-btn" data-tag="box"     title="Box [box]">□ Box</button>
-      <button class="tb-btn" data-tag="sidebar" title="Sidebar [sidebar]">│ Side</button>
+      <button class="tb-btn dispatch-only" data-tag="box"     title="Box [box] — dispatch only">□ Box</button>
+      <button class="tb-btn dispatch-only" data-tag="sidebar" title="Sidebar [sidebar] — dispatch only">│ Side</button>
       <button class="tb-btn" id="btn-quote"     title="Quote [quote=…]">❝ Quote</button>
       <button class="tb-btn" id="btn-spoiler"   title="Spoiler [spoiler=…]">▶ Spoiler</button>
     </div>
@@ -203,7 +213,7 @@
     <!-- ── Left: editor ───────────────────────────────────────────── -->
     <section class="pane pane-editor">
       <div class="pane-header">
-        <span class="pane-title">BBCode</span>
+        <span class="pane-title">BBCode <span class="mode-badge" id="editor-mode-badge">Dispatch</span></span>
         <div class="pane-header-right">
           <span id="char-count" class="char-count">0 chars</span>
           <button class="btn btn-xs" id="btn-undo" title="Undo">↩</button>
