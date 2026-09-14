@@ -198,6 +198,7 @@ function bbcodeForumToHtml(raw) {
 
   // Strip dispatch-only tags completely (leave inner text where it makes sense)
   // Tags with meaningful inner content — keep the text, drop the tag
+  s = s.replace(/\[hr\]/gi,                                                         '');
   s = s.replace(/\[size=\d+\]([\s\S]*?)\[\/size\]/gi,                          '$1');
   s = s.replace(/\[font=[^\]]+\]([\s\S]*?)\[\/font\]/gi,                        '$1');
   s = s.replace(/\[background-block=[^\]]+\]([\s\S]*?)\[\/background-block\]/gi,'$1');
