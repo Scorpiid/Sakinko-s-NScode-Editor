@@ -1,17 +1,11 @@
 /* ================================================================
-   NationStates BBCode Editor – app.js
+   Sakinko's BBCode Editor – app.js
    ================================================================ */
 
 'use strict';
 
 /* ── Utility helpers ─────────────────────────────────────────── */
 const $ = id => document.getElementById(id);
-const el = (tag, cls, html) => {
-  const e = document.createElement(tag);
-  if (cls)  e.className = cls;
-  if (html !== undefined) e.innerHTML = html;
-  return e;
-};
 
 /* ── DOM refs ─────────────────────────────────────────────────── */
 const editor       = $('editor');
@@ -46,10 +40,10 @@ function setMode(mode) {
     t.classList.toggle('active', t.dataset.mode === mode)
   );
 
-  const hint = $('mode-hint');
+  const hint  = $('mode-hint');
   const badge = $('editor-mode-badge');
   if (mode === 'forum') {
-    hint.textContent  = 'Forum mode — phpBB tags, no dispatch-only blocks';
+    hint.textContent  = 'Forum mode — phpBB tags only';
     badge.textContent = 'Forum';
   } else {
     hint.textContent  = 'Dispatch mode — all NS tags available';
@@ -65,8 +59,6 @@ document.querySelectorAll('.mode-tab').forEach(tab => {
   tab.addEventListener('click', () => setMode(tab.dataset.mode));
 });
 
-
-
 /* ================================================================
    1. BBCode → HTML PARSERS
    ================================================================ */
@@ -76,12 +68,11 @@ function bbcodeToHtml(raw) {
   return currentMode === 'forum' ? bbcodeForumToHtml(raw) : bbcodeDispatchToHtml(raw);
 }
 
-/* ── shared escaping ─────────────────────────────────────────── */
 function escapeInput(raw) {
   return raw.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
-/* ── shared tags present in both modes ──────────────────────── */
+/* ── Tags present in BOTH modes ─────────────────────────────── */
 function applySharedTags(s) {
   s = s.replace(/\[hr\]/gi, '<hr>');
   s = s.replace(/\[b\]([\s\S]*?)\[\/b\]/gi,           '<strong>$1</strong>');
@@ -90,10 +81,6 @@ function applySharedTags(s) {
   s = s.replace(/\[strike\]([\s\S]*?)\[\/strike\]/gi, '<s>$1</s>');
   s = s.replace(/\[sup\]([\s\S]*?)\[\/sup\]/gi,       '<sup>$1</sup>');
   s = s.replace(/\[sub\]([\s\S]*?)\[\/sub\]/gi,       '<sub>$1</sub>');
-  s = s.replace(/\[size=(\d+)\]([\s\S]*?)\[\/size\]/gi, (_, pct, inner) =>
-    `<span style="font-size:${(parseInt(pct,10)/100).toFixed(2)}em">${inner}</span>`);
-  s = s.replace(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (_, f, inner) =>
-    `<span style="font-family:${sanitizeAttr(f)}">${inner}</span>`);
   s = s.replace(/\[color=([^\]]+)\]([\s\S]*?)\[\/color\]/gi, (_, c, inner) =>
     `<span style="color:${sanitizeAttr(c)}">${inner}</span>`);
   s = s.replace(/\[background=([^\]]+)\]([\s\S]*?)\[\/background\]/gi, (_, c, inner) =>
@@ -106,28 +93,38 @@ function applySharedTags(s) {
     `<a href="${sanitizeUrl(href)}" target="_blank" rel="noopener">${href}</a>`);
   s = s.replace(/\[img\]([\s\S]*?)\[\/img\]/gi, (_, src) =>
     `<img src="${sanitizeUrl(src)}" alt="image" loading="lazy">`);
+  // Lists
   s = s.replace(/\[list=(\w+)\]([\s\S]*?)\[\/list\]/gi, (_, type, inner) =>
     `<ol type="${{1:'1',A:'A',a:'a',I:'I',i:'i'}[type]||'1'}">${inner.replace(/\[\*\]/g,'<li>')}</ol>`);
   s = s.replace(/\[list\]([\s\S]*?)\[\/list\]/gi, (_, inner) =>
     `<ul>${inner.replace(/\[\*\]/g,'<li>')}</ul>`);
+  // Tables
   s = s.replace(/\[table\]([\s\S]*?)\[\/table\]/gi, '<table>$1</table>');
   s = s.replace(/\[tr\]([\s\S]*?)\[\/tr\]/gi,       '<tr>$1</tr>');
   s = s.replace(/\[th\]([\s\S]*?)\[\/th\]/gi,       '<th>$1</th>');
   s = s.replace(/\[td\]([\s\S]*?)\[\/td\]/gi,       '<td>$1</td>');
+  // Quotes (shared structure; syntax differs per mode, handled before this call)
   return s;
 }
 
 /* ================================================================
-   1a. DISPATCH PARSER
+   1a. DISPATCH PARSER  — all tags
    ================================================================ */
 function bbcodeDispatchToHtml(raw) {
   let s = escapeInput(raw);
+
+  // Protect [pre] blocks
   const preBlocks = [];
   s = s.replace(/\[pre\]([\s\S]*?)\[\/pre\]/gi, (_, inner) => {
     const idx = preBlocks.length; preBlocks.push(`<pre>${inner}</pre>`);
     return `\x00PRE${idx}\x00`;
   });
-  s = applySharedTags(s);
+
+  // Dispatch-only tags before shared (size, font, background-block, float, tab, NS links)
+  s = s.replace(/\[size=(\d+)\]([\s\S]*?)\[\/size\]/gi, (_, pct, inner) =>
+    `<span style="font-size:${(parseInt(pct,10)/100).toFixed(2)}em">${inner}</span>`);
+  s = s.replace(/\[font=([^\]]+)\]([\s\S]*?)\[\/font\]/gi, (_, f, inner) =>
+    `<span style="font-family:${sanitizeAttr(f)}">${inner}</span>`);
   s = s.replace(/\[background-block=([^\]]+)\]([\s\S]*?)\[\/background-block\]/gi, (_, c, inner) =>
     `<span class="ns-bg-block" style="background-color:${sanitizeAttr(c)}">${inner}</span>`);
   s = s.replace(/\[floatleft\]([\s\S]*?)\[\/floatleft\]/gi,
@@ -138,91 +135,133 @@ function bbcodeDispatchToHtml(raw) {
     `<span class="ns-tab" style="padding-left:${parseInt(px,10)}px">${inner}</span>`);
   s = s.replace(/\[tab\]([\s\S]*?)\[\/tab\]/gi,
     '<span class="ns-tab" style="padding-left:30px">$1</span>');
-  s = s.replace(/\[anchor=([^\]]+)\]([\s\S]*?)\[\/anchor\]/gi, (_, name, inner) =>
-    `<span id="${sanitizeAttr(name)}" class="ns-anchor">${inner}</span>`);
-  s = s.replace(/\[anchor=([^\]]+)\]/gi, (_, name) =>
-    `<span id="${sanitizeAttr(name)}" class="ns-anchor"></span>`);
+
+  // Nation / Region
   s = s.replace(/\[nation(?:=[^\]]+)?\]([\s\S]*?)\[\/nation\]/gi, (_, name) => {
     const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g,'_'));
     return `<a class="ns-nation" href="https://www.nationstates.net/nation=${slug}" target="_blank" rel="noopener">${name}</a>`;
   });
-  s = s.replace(/\[region(?:=[^\]]+)?\]([\s\S]*?)\[\/region\]/gi, (_, name) => {
+  s = s.replace(/\[region=([^\]]+)\]([\s\S]*?)\[\/region\]/gi, (_, rname, inner) => {
+    const slug = encodeURIComponent(rname.trim().toLowerCase().replace(/ /g,'_'));
+    return `<a class="ns-region" href="https://www.nationstates.net/region=${slug}" target="_blank" rel="noopener">${inner}</a>`;
+  });
+  s = s.replace(/\[region\]([\s\S]*?)\[\/region\]/gi, (_, name) => {
     const slug = encodeURIComponent(name.trim().toLowerCase().replace(/ /g,'_'));
     return `<a class="ns-region" href="https://www.nationstates.net/region=${slug}" target="_blank" rel="noopener">${name}</a>`;
   });
-  s = s.replace(/\[proposal(?:=[^\]]+)?\]([\s\S]*?)\[\/proposal\]/gi, (_, id) =>
-    `<span class="ns-proposal">📜 WA Proposal: ${id}</span>`);
-  s = s.replace(/\[resolution(?:=[^\]]+)?\]([\s\S]*?)\[\/resolution\]/gi, (_, id) =>
-    `<span class="ns-resolution">⚖️ WA Resolution: ${id}</span>`);
+
+  // Region-tag (renders as a styled region banner)
+  s = s.replace(/\[region-tag=([^\]]+)\]([\s\S]*?)\[\/region-tag\]/gi, (_, rname, inner) =>
+    `<span class="ns-region-tag" title="Region: ${escHtml(rname)}">${inner}</span>`);
+  s = s.replace(/\[region-tag\]([\s\S]*?)\[\/region-tag\]/gi, (_, inner) =>
+    `<span class="ns-region-tag">${inner}</span>`);
+
+  // Proposal
+  s = s.replace(/\[proposal=([^\]]+)\]([\s\S]*?)\[\/proposal\]/gi, (_, id, inner) =>
+    `<span class="ns-proposal">📜 ${inner} <em>(Proposal #${escHtml(id)})</em></span>`);
+  s = s.replace(/\[proposal\]([\s\S]*?)\[\/proposal\]/gi, (_, inner) =>
+    `<span class="ns-proposal">📜 ${inner}</span>`);
+
+  // Box (no nesting)
   s = s.replace(/\[box\]([\s\S]*?)\[\/box\]/gi, (_, inner) =>
     `<div class="ns-box">${inner.replace(/\[box\]([\s\S]*?)\[\/box\]/gi,'$1')}</div>`);
+
+  // Sidebar (floated box)
   s = s.replace(/\[sidebar\]([\s\S]*?)\[\/sidebar\]/gi,
     '<div class="ns-sidebar">$1</div><div class="ns-clearfix"></div>');
+
+  // Shared tags
+  s = applySharedTags(s);
+
+  // Quote
   s = s.replace(/\[quote=([^\]]+)\]([\s\S]*?)\[\/quote\]/gi, (_, attr, inner) =>
     `<div class="ns-quote"><div class="ns-quote-author">${escHtml(attr.split(';')[0])} wrote:</div>${inner}</div>`);
   s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi, '<div class="ns-quote">$1</div>');
+
+  // Spoiler
   s = s.replace(/\[spoiler=([^\]]+)\]([\s\S]*?)\[\/spoiler\]/gi, (_, label, inner) =>
     spoilerHtml(label, inner));
   s = s.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
     spoilerHtml('Spoiler', inner));
+
+  // Restore pre blocks
   s = s.replace(/\x00PRE(\d+)\x00/g, (_, i) => preBlocks[parseInt(i,10)]);
   s = s.replace(/\n/g, '<br>');
   return s;
 }
 
 /* ================================================================
-   1b. FORUM PARSER  (phpBB-style)
+   1b. FORUM PARSER — phpBB only; dispatch-only tags stripped
    ================================================================ */
 function bbcodeForumToHtml(raw) {
   let s = escapeInput(raw);
-  // Protect [code] content from inner parsing
+
+  // Strip dispatch-only tags completely (leave inner text where it makes sense)
+  // Tags with meaningful inner content — keep the text, drop the tag
+  s = s.replace(/\[size=\d+\]([\s\S]*?)\[\/size\]/gi,                          '$1');
+  s = s.replace(/\[font=[^\]]+\]([\s\S]*?)\[\/font\]/gi,                        '$1');
+  s = s.replace(/\[background-block=[^\]]+\]([\s\S]*?)\[\/background-block\]/gi,'$1');
+  s = s.replace(/\[floatleft\]([\s\S]*?)\[\/floatleft\]/gi,                     '$1');
+  s = s.replace(/\[floatright\]([\s\S]*?)\[\/floatright\]/gi,                   '$1');
+  s = s.replace(/\[tab(?:=\d+)?\]([\s\S]*?)\[\/tab\]/gi,                       '$1');
+  s = s.replace(/\[box\]([\s\S]*?)\[\/box\]/gi,                                 '$1');
+  s = s.replace(/\[sidebar\]([\s\S]*?)\[\/sidebar\]/gi,                         '$1');
+  s = s.replace(/\[nation(?:=[^\]]+)?\]([\s\S]*?)\[\/nation\]/gi,               '$1');
+  s = s.replace(/\[region(?:=[^\]]+)?\]([\s\S]*?)\[\/region\]/gi,               '$1');
+  s = s.replace(/\[region-tag(?:=[^\]]+)?\]([\s\S]*?)\[\/region-tag\]/gi,       '$1');
+  s = s.replace(/\[proposal(?:=[^\]]+)?\]([\s\S]*?)\[\/proposal\]/gi,           '$1');
+  s = s.replace(/\[anchor(?:=[^\]]+)?\]([\s\S]*?)\[\/anchor\]/gi,               '$1');
+  s = s.replace(/\[anchor=[^\]]+\]/gi,                                           '');
+
+  // Protect [code] blocks
   const codeBlocks = [];
   s = s.replace(/\[code\]([\s\S]*?)\[\/code\]/gi, (_, inner) => {
     const idx = codeBlocks.length; codeBlocks.push(`<code>${inner}</code>`);
     return `\x00CODE${idx}\x00`;
   });
+
+  // Protect [pre] blocks
   const preBlocks = [];
   s = s.replace(/\[pre\]([\s\S]*?)\[\/pre\]/gi, (_, inner) => {
     const idx = preBlocks.length; preBlocks.push(`<pre>${inner}</pre>`);
     return `\x00PRE${idx}\x00`;
   });
+
   s = applySharedTags(s);
-  // [img=WxH]url[/img] — phpBB supports size param
+
+  // [img=WxH] — phpBB size param
   s = s.replace(/\[img=(\d+)[xX×](\d+)\]([\s\S]*?)\[\/img\]/gi, (_, w, h, src) =>
     `<img src="${sanitizeUrl(src)}" width="${w}" height="${h}" alt="image" loading="lazy" style="max-width:100%">`);
-  // Quote: phpBB uses [quote="Author"] double-quoted, or bare [quote=Author]
+
+  // Quote — phpBB uses [quote="Author"] or [quote=Author]
   s = s.replace(/\[quote="([^"]+)"\]([\s\S]*?)\[\/quote\]/gi, (_, author, inner) =>
     `<div class="ns-quote"><div class="ns-quote-author">${escHtml(author)} wrote:</div>${inner}</div>`);
   s = s.replace(/\[quote=([^\]"]+)\]([\s\S]*?)\[\/quote\]/gi, (_, author, inner) =>
     `<div class="ns-quote"><div class="ns-quote-author">${escHtml(author)} wrote:</div>${inner}</div>`);
-  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi, '<div class="ns-quote">$1</div>');
-  // Forum spoiler has no label
+  s = s.replace(/\[quote\]([\s\S]*?)\[\/quote\]/gi,
+    '<div class="ns-quote">$1</div>');
+
+  // Spoiler — no label in forum
   s = s.replace(/\[spoiler\]([\s\S]*?)\[\/spoiler\]/gi, (_, inner) =>
     spoilerHtml('Spoiler', inner));
+
   s = s.replace(/\x00CODE(\d+)\x00/g, (_, i) => codeBlocks[parseInt(i,10)]);
   s = s.replace(/\x00PRE(\d+)\x00/g,  (_, i) => preBlocks[parseInt(i,10)]);
   s = s.replace(/\n/g, '<br>');
   return s;
 }
 
-
-/* ── helpers used by parser ─────────────────────────────────── */
+/* ── Parser helpers ──────────────────────────────────────────── */
 function sanitizeAttr(val) {
-  // Strip quotes and angle brackets to prevent attribute injection
   return val.replace(/["'<>]/g, '');
 }
-
 function sanitizeUrl(val) {
-  const trimmed = val.trim();
-  // Allow http, https, ftp, and relative URLs; block javascript:
-  if (/^javascript:/i.test(trimmed)) return '#';
-  return trimmed;
+  const t = val.trim();
+  return /^javascript:/i.test(t) ? '#' : t;
 }
-
 function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
-
 function spoilerHtml(label, inner) {
   return `<div class="ns-spoiler"><div class="ns-spoiler-label">${escHtml(label)}</div><div class="ns-spoiler-body">${inner}</div></div>`;
 }
@@ -235,26 +274,15 @@ const history = {
   stack: [''],
   pos: 0,
   maxLen: 200,
-
   push(val) {
-    // Drop any redo states ahead
-    if (this.pos < this.stack.length - 1)
-      this.stack.splice(this.pos + 1);
-    // Deduplicate consecutive identical states
+    if (this.pos < this.stack.length - 1) this.stack.splice(this.pos + 1);
     if (this.stack[this.pos] === val) return;
     this.stack.push(val);
-    if (this.stack.length > this.maxLen)
-      this.stack.shift();
+    if (this.stack.length > this.maxLen) this.stack.shift();
     this.pos = this.stack.length - 1;
   },
-  undo() {
-    if (this.pos > 0) { this.pos--; return this.stack[this.pos]; }
-    return null;
-  },
-  redo() {
-    if (this.pos < this.stack.length - 1) { this.pos++; return this.stack[this.pos]; }
-    return null;
-  }
+  undo() { if (this.pos > 0) { this.pos--; return this.stack[this.pos]; } return null; },
+  redo() { if (this.pos < this.stack.length - 1) { this.pos++; return this.stack[this.pos]; } return null; }
 };
 
 let historyTimer = null;
@@ -282,16 +310,14 @@ function triggerUpdate() {
 }
 
 function renderPreview() {
-  const html = bbcodeToHtml(editor.value);
-  preview.innerHTML = html;
-  // Re-attach spoiler click handlers
+  preview.innerHTML = bbcodeToHtml(editor.value);
   preview.querySelectorAll('.ns-spoiler-label').forEach(lbl => {
     lbl.addEventListener('click', () => lbl.closest('.ns-spoiler').classList.toggle('open'));
   });
 }
 
 function updateCounts() {
-  const raw  = editor.value;
+  const raw   = editor.value;
   const chars = raw.length;
   const words = raw.trim() === '' ? 0 : raw.trim().split(/\s+/).length;
   const lines = raw === '' ? 1 : raw.split('\n').length;
@@ -300,7 +326,6 @@ function updateCounts() {
   lineCount.textContent = `${lines.toLocaleString()} line${lines !== 1 ? 's' : ''}`;
 }
 
-/* ── Scroll sync ─────────────────────────────────────────────── */
 editor.addEventListener('scroll', () => {
   if (!syncScroll.checked) return;
   const ratio = editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
@@ -311,20 +336,14 @@ editor.addEventListener('scroll', () => {
    4. WRAPPING HELPERS
    ================================================================ */
 
-/**
- * Insert open/close tags around the current selection,
- * or place cursor between them if nothing is selected.
- */
 function wrapSelection(open, close = '') {
   editor.focus();
-  const start = editor.selectionStart;
-  const end   = editor.selectionEnd;
-  const sel   = editor.value.slice(start, end);
+  const start  = editor.selectionStart;
+  const end    = editor.selectionEnd;
+  const sel    = editor.value.slice(start, end);
   const before = editor.value.slice(0, start);
   const after  = editor.value.slice(end);
-
   let newVal, cursorStart, cursorEnd;
-
   if (sel) {
     newVal = before + open + sel + close + after;
     cursorStart = start + open.length;
@@ -333,7 +352,6 @@ function wrapSelection(open, close = '') {
     newVal = before + open + close + after;
     cursorStart = cursorEnd = start + open.length;
   }
-
   editor.value = newVal;
   editor.setSelectionRange(cursorStart, cursorEnd);
   history.push(newVal);
@@ -341,10 +359,9 @@ function wrapSelection(open, close = '') {
   setStatus('Tag inserted');
 }
 
-/** Insert text at cursor without wrapping */
 function insertAtCursor(text) {
   editor.focus();
-  const start = editor.selectionStart;
+  const start  = editor.selectionStart;
   const before = editor.value.slice(0, start);
   const after  = editor.value.slice(editor.selectionEnd);
   editor.value = before + text + after;
@@ -362,65 +379,38 @@ document.querySelectorAll('.tb-btn[data-tag]').forEach(btn => {
   const tag = btn.dataset.tag;
 
   if (btn.dataset.selfclose) {
-    // Self-closing tag like [hr]
     btn.addEventListener('click', () => insertAtCursor(`[${tag}]`));
     return;
   }
-
   if (btn.classList.contains('tb-prompt')) {
-    // Parameterised tag – open modal to get value
-    btn.addEventListener('click', () => {
-      openPromptModal(
-        btn.dataset.prompt || `Enter ${tag} value`,
-        btn.dataset.default || '',
-        tag
-      );
-    });
+    btn.addEventListener('click', () =>
+      openPromptModal(btn.dataset.prompt || `Enter ${tag} value`, btn.dataset.default || '', tag)
+    );
     return;
   }
-
-  // Simple wrap tag: [tag]...[/tag]
   btn.addEventListener('click', () => wrapSelection(`[${tag}]`, `[/${tag}]`));
 });
 
-/* data-wrap / data-wrapclose buttons */
 document.querySelectorAll('.tb-btn[data-wrap]').forEach(btn => {
-  btn.addEventListener('click', () =>
-    wrapSelection(btn.dataset.wrap, btn.dataset.wrapclose || '')
-  );
+  btn.addEventListener('click', () => wrapSelection(btn.dataset.wrap, btn.dataset.wrapclose || ''));
 });
 
 /* ── Colour pickers ─────────────────────────────────────────── */
-$('pick-color').addEventListener('change', e => {
-  wrapSelection(`[color=${e.target.value}]`, '[/color]');
-});
-$('pick-bg').addEventListener('change', e => {
-  wrapSelection(`[background=${e.target.value}]`, '[/background]');
-});
-$('pick-block').addEventListener('change', e => {
-  wrapSelection(`[background-block=${e.target.value}]`, '[/background-block]');
-});
-
-/* ── Font dropdown ──────────────────────────────────────────── */
-$('font-select').addEventListener('change', function() {
-  const font = this.value;
-  if (!font) return;
-  wrapSelection(`[font=${font}]`, '[/font]');
-  // Reset to placeholder so it can be used again immediately
-  this.value = '';
-});
+$('pick-color').addEventListener('change', e =>
+  wrapSelection(`[color=${e.target.value}]`, '[/color]'));
+$('pick-bg').addEventListener('change', e =>
+  wrapSelection(`[background=${e.target.value}]`, '[/background]'));
+$('pick-block').addEventListener('change', e =>
+  wrapSelection(`[background-block=${e.target.value}]`, '[/background-block]'));
 
 /* ── Nation / Region smart-wrap ─────────────────────────────── */
-// If text is selected → wrap it directly.
-// If nothing is selected → ask for a name via modal.
 function nsLinkButton(tag, label) {
   return () => {
     const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
     if (sel) {
       wrapSelection(`[${tag}]`, `[/${tag}]`);
-      setStatus(`Wrapped as [${tag}]`);
     } else {
-      openModal(`Insert ${label} link`, `
+      openModal(`Insert ${label}`, `
         <div class="modal-field">
           <label class="modal-label">${label} name</label>
           <input class="modal-input" id="mf-single" type="text" placeholder="e.g. Testlandia">
@@ -430,17 +420,24 @@ function nsLinkButton(tag, label) {
     }
   };
 }
-
 $('btn-nation').addEventListener('click', nsLinkButton('nation', 'Nation'));
 $('btn-region').addEventListener('click', nsLinkButton('region', 'Region'));
+
+/* ── URL ────────────────────────────────────────────────────── */
 $('btn-url').addEventListener('click', () => {
   const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd).trim();
-  openModal('Insert Link', buildUrlForm(sel), ({ url, label }) => {
+  openModal('Insert Link', `
+    <div class="modal-field">
+      <label class="modal-label">URL</label>
+      <input class="modal-input" id="mf-url" type="url" placeholder="https://…" autocomplete="off">
+    </div>
+    <div class="modal-field">
+      <label class="modal-label">Label (optional)</label>
+      <input class="modal-input" id="mf-label" type="text" value="${escHtml(sel)}" placeholder="Link text…">
+    </div>`, ({ url, label }) => {
     if (!url) return;
     wrapSelection(`[url=${url}]`, '[/url]');
-    // If label differs from raw selection, replace the inner text too
     if (label && label !== sel) {
-      // Selection cursor is now around the old sel; replace it
       const s = editor.selectionStart;
       const e2 = editor.selectionEnd;
       const v = editor.value;
@@ -452,36 +449,24 @@ $('btn-url').addEventListener('click', () => {
   });
 });
 
-function buildUrlForm(defaultLabel) {
-  return `
-    <div class="modal-field">
-      <label class="modal-label">URL</label>
-      <input class="modal-input" id="mf-url" type="url" placeholder="https://www.nationstates.net/…" autocomplete="off">
-    </div>
-    <div class="modal-field">
-      <label class="modal-label">Label (optional)</label>
-      <input class="modal-input" id="mf-label" type="text" value="${escHtml(defaultLabel)}" placeholder="Link text…">
-    </div>`;
-}
-
-/* ── Image button ───────────────────────────────────────────── */
+/* ── IMG ────────────────────────────────────────────────────── */
 $('btn-img').addEventListener('click', () => {
   openModal('Insert Image', `
     <div class="modal-field">
       <label class="modal-label">Image URL</label>
       <input class="modal-input" id="mf-img-url" type="url" placeholder="https://…/image.png" autocomplete="off">
     </div>`, ({ imgUrl }) => {
-    if (imgUrl) wrapSelection('[img]' + imgUrl + '[/img]', '');
+    if (imgUrl) insertAtCursor(`[img]${imgUrl}[/img]`);
   });
 });
 
-/* ── Quote button ───────────────────────────────────────────── */
+/* ── Quote ──────────────────────────────────────────────────── */
 $('btn-quote').addEventListener('click', () => {
   if (currentMode === 'forum') {
     openModal('Insert Quote', `
       <div class="modal-field">
         <label class="modal-label">Author (optional)</label>
-        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous quote">
+        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous">
       </div>`, ({ quoteAuthor }) => {
       const tag = quoteAuthor ? `[quote="${quoteAuthor}"]` : '[quote]';
       wrapSelection(tag, '[/quote]');
@@ -489,8 +474,8 @@ $('btn-quote').addEventListener('click', () => {
   } else {
     openModal('Insert Quote', `
       <div class="modal-field">
-        <label class="modal-label">Author (nation name, optional)</label>
-        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous quote">
+        <label class="modal-label">Author (optional)</label>
+        <input class="modal-input" id="mf-quote-author" type="text" placeholder="Leave blank for anonymous">
       </div>`, ({ quoteAuthor }) => {
       const tag = quoteAuthor ? `[quote=${quoteAuthor}]` : '[quote]';
       wrapSelection(tag, '[/quote]');
@@ -498,10 +483,9 @@ $('btn-quote').addEventListener('click', () => {
   }
 });
 
-/* ── Spoiler button ─────────────────────────────────────────── */
+/* ── Spoiler ────────────────────────────────────────────────── */
 $('btn-spoiler').addEventListener('click', () => {
   if (currentMode === 'forum') {
-    // Forum spoiler has no label
     wrapSelection('[spoiler]', '[/spoiler]');
   } else {
     openModal('Insert Spoiler', `
@@ -517,8 +501,7 @@ $('btn-spoiler').addEventListener('click', () => {
 /* ── Bullet list ────────────────────────────────────────────── */
 $('btn-ul').addEventListener('click', () => {
   const items = getSelectedLines();
-  const inner = items.map(l => `[*]${l}`).join('\n');
-  insertAtCursor(`[list]\n${inner}\n[/list]`);
+  insertAtCursor(`[list]\n${items.map(l => `[*]${l}`).join('\n')}\n[/list]`);
 });
 
 /* ── Ordered list ───────────────────────────────────────────── */
@@ -527,16 +510,15 @@ $('btn-ol').addEventListener('click', () => {
     <div class="modal-field">
       <label class="modal-label">List type</label>
       <select class="modal-select" id="mf-list-type">
-        <option value="1">1, 2, 3…  (numeric)</option>
-        <option value="A">A, B, C…  (upper alpha)</option>
-        <option value="a">a, b, c…  (lower alpha)</option>
+        <option value="1">1, 2, 3… (numeric)</option>
+        <option value="A">A, B, C… (upper alpha)</option>
+        <option value="a">a, b, c… (lower alpha)</option>
         <option value="I">I, II, III… (upper roman)</option>
         <option value="i">i, ii, iii… (lower roman)</option>
       </select>
     </div>`, ({ listType }) => {
     const items = getSelectedLines();
-    const inner = items.map(l => `[*]${l}`).join('\n');
-    insertAtCursor(`[list=${listType || '1'}]\n${inner}\n[/list]`);
+    insertAtCursor(`[list=${listType || '1'}]\n${items.map(l => `[*]${l}`).join('\n')}\n[/list]`);
   });
 });
 
@@ -557,38 +539,27 @@ $('btn-table').addEventListener('click', () => {
         Include header row
       </label>
     </div>`, ({ rows, cols, header }) => {
+    const r = Math.max(1, Math.min(20, parseInt(rows,10) || 3));
+    const c = Math.max(1, Math.min(20, parseInt(cols,10) || 3));
     let tbl = '[table]\n';
-    const r = Math.max(1, Math.min(20, parseInt(rows, 10) || 3));
-    const c = Math.max(1, Math.min(20, parseInt(cols, 10) || 3));
-    if (header) {
-      tbl += '[tr]' + Array.from({length: c}, (_, i) => `[th]Header ${i+1}[/th]`).join('') + '[/tr]\n';
-    }
-    for (let row = 1; row <= r; row++) {
-      tbl += '[tr]' + Array.from({length: c}, (_, i) => `[td]Cell ${row}-${i+1}[/td]`).join('') + '[/tr]\n';
-    }
+    if (header) tbl += '[tr]' + Array.from({length:c},(_,i)=>`[th]Header ${i+1}[/th]`).join('') + '[/tr]\n';
+    for (let row = 1; row <= r; row++)
+      tbl += '[tr]' + Array.from({length:c},(_,i)=>`[td]Cell ${row}-${i+1}[/td]`).join('') + '[/tr]\n';
     tbl += '[/table]';
     insertAtCursor(tbl);
   });
 });
 
-/** Return selected text split into lines, or [''] if nothing selected */
 function getSelectedLines() {
   const sel = editor.value.slice(editor.selectionStart, editor.selectionEnd);
-  if (!sel.trim()) return [''];
-  return sel.split('\n');
+  return sel.trim() ? sel.split('\n') : [''];
 }
 
 /* ── Undo / Redo / Clear ────────────────────────────────────── */
-$('btn-undo').addEventListener('click', () => {
-  const val = history.undo();
-  if (val !== null) restoreEditorValue(val);
-});
-$('btn-redo').addEventListener('click', () => {
-  const val = history.redo();
-  if (val !== null) restoreEditorValue(val);
-});
+$('btn-undo').addEventListener('click', () => { const v = history.undo(); if (v !== null) restoreEditorValue(v); });
+$('btn-redo').addEventListener('click', () => { const v = history.redo(); if (v !== null) restoreEditorValue(v); });
 $('btn-clear').addEventListener('click', () => {
-  if (editor.value === '') return;
+  if (!editor.value) return;
   if (confirm('Clear all content?')) {
     history.push(editor.value);
     editor.value = '';
@@ -597,62 +568,43 @@ $('btn-clear').addEventListener('click', () => {
   }
 });
 
-/* Keyboard undo/redo */
 editor.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-    e.preventDefault();
-    const val = history.undo();
-    if (val !== null) restoreEditorValue(val);
+    e.preventDefault(); const v = history.undo(); if (v !== null) restoreEditorValue(v);
   }
   if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
-    e.preventDefault();
-    const val = history.redo();
-    if (val !== null) restoreEditorValue(val);
+    e.preventDefault(); const v = history.redo(); if (v !== null) restoreEditorValue(v);
   }
-  /* Tab key → insert [tab] indent rather than lose focus */
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    wrapSelection('[tab=30]', '[/tab]');
-  }
+  if (e.key === 'Tab') { e.preventDefault(); wrapSelection('[tab=30]', '[/tab]'); }
 });
 
 /* ================================================================
-   6. GENERIC MODAL SYSTEM
+   6. MODAL SYSTEM
    ================================================================ */
 
 let modalCallback = null;
 
-/**
- * Open a modal with arbitrary HTML body content.
- * collector: function that reads #mf-* inputs and returns a data object.
- * onOk(data): called on confirmation.
- */
 function openModal(title, bodyHtml, onOk) {
   modalTitle.textContent = title;
   modalBody.innerHTML = bodyHtml;
   modalCallback = onOk;
   modalOverlay.classList.remove('hidden');
-  // Focus first input
   const first = modalBody.querySelector('input, select, textarea');
   if (first) setTimeout(() => first.focus(), 50);
 }
 
-/** Convenience for single-value prompt modals (used by tb-prompt buttons) */
 function openPromptModal(label, defaultVal, tag) {
-  openModal(
-    `Insert [${tag}]`,
-    `<div class="modal-field">
-       <label class="modal-label">${escHtml(label)}</label>
-       <input class="modal-input" id="mf-single" type="text" value="${escHtml(defaultVal)}" placeholder="${escHtml(defaultVal)}">
-     </div>`,
+  openModal(`Insert [${tag}]`, `
+    <div class="modal-field">
+      <label class="modal-label">${escHtml(label)}</label>
+      <input class="modal-input" id="mf-single" type="text" value="${escHtml(defaultVal)}" placeholder="${escHtml(defaultVal)}">
+    </div>`,
     ({ single }) => {
+      if (!single) return;
       if (tag === 'anchor') {
-        // anchor wraps content or inserts self-closing
-        if (editor.selectionStart === editor.selectionEnd) {
-          insertAtCursor(`[anchor=${single}]`);
-        } else {
-          wrapSelection(`[anchor=${single}]`, '[/anchor]');
-        }
+        editor.selectionStart === editor.selectionEnd
+          ? insertAtCursor(`[anchor=${single}]`)
+          : wrapSelection(`[anchor=${single}]`, '[/anchor]');
       } else {
         wrapSelection(`[${tag}=${single}]`, `[/${tag}]`);
       }
@@ -668,70 +620,49 @@ function closeModal() {
 
 function confirmModal() {
   if (!modalCallback) { closeModal(); return; }
-  // Harvest all #mf-* fields
   const data = {};
   modalBody.querySelectorAll('[id^="mf-"]').forEach(el => {
-    const key = el.id.replace('mf-', '').replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+    const key = el.id.replace('mf-','').replace(/-([a-z])/g,(_,c)=>c.toUpperCase());
     data[key] = el.type === 'checkbox' ? el.checked : el.value;
   });
   modalCallback(data);
   closeModal();
 }
 
-modalOk.addEventListener('click',     confirmModal);
+modalOk.addEventListener('click', confirmModal);
 modalCancel.addEventListener('click', closeModal);
-modalClose.addEventListener('click',  closeModal);
+modalClose.addEventListener('click', closeModal);
 modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) closeModal(); });
-
-/* Submit modal on Enter key in inputs */
 modalBody.addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
-    e.preventDefault();
-    confirmModal();
-  }
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') { e.preventDefault(); confirmModal(); }
 });
 
 /* ================================================================
    7. TOP-BAR ACTIONS
    ================================================================ */
 
-/* ── New ────────────────────────────────────────────────────── */
 $('btn-new').addEventListener('click', () => {
-  if (editor.value.trim() && !confirm('Discard current content and start a new document?')) return;
+  if (editor.value.trim() && !confirm('Discard current content?')) return;
   history.push(editor.value);
   editor.value = '';
   triggerUpdate();
   setStatus('New document');
 });
 
-/* ── Copy BBCode ─────────────────────────────────────────────── */
 $('btn-copy').addEventListener('click', async () => {
   if (!editor.value) { showToast('Nothing to copy'); return; }
-  try {
-    await navigator.clipboard.writeText(editor.value);
-    showToast('BBCode copied to clipboard!');
-    setStatus('Copied');
-  } catch {
-    showToast('Copy failed – try Ctrl+A then Ctrl+C');
-  }
+  try { await navigator.clipboard.writeText(editor.value); showToast('BBCode copied!'); setStatus('Copied'); }
+  catch { showToast('Copy failed – try Ctrl+A then Ctrl+C'); }
 });
 
-/* ── Copy preview HTML ──────────────────────────────────────── */
 $('btn-copy-preview').addEventListener('click', async () => {
-  try {
-    await navigator.clipboard.writeText(preview.innerHTML);
-    showToast('HTML copied!');
-  } catch {
-    showToast('Copy failed');
-  }
+  try { await navigator.clipboard.writeText(preview.innerHTML); showToast('HTML copied!'); }
+  catch { showToast('Copy failed'); }
 });
 
-/* ── Import ─────────────────────────────────────────────────── */
 $('btn-import').addEventListener('click', () => fileInput.click());
-
 fileInput.addEventListener('change', e => {
-  const file = e.target.files[0];
-  if (!file) return;
+  const file = e.target.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
     history.push(editor.value);
@@ -744,70 +675,64 @@ fileInput.addEventListener('change', e => {
   fileInput.value = '';
 });
 
-/* ── Export ─────────────────────────────────────────────────── */
 $('btn-export').addEventListener('click', () => {
   const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href     = url;
-  a.download = 'dispatch.txt';
-  a.click();
+  a.href = url; a.download = 'bbcode.txt'; a.click();
   URL.revokeObjectURL(url);
-  setStatus('Exported');
-  showToast('Exported as dispatch.txt');
+  setStatus('Exported'); showToast('Exported as bbcode.txt');
 });
 
 /* ================================================================
    8. THEME TOGGLE
    ================================================================ */
+
 themeToggle.addEventListener('change', () => {
   document.body.classList.toggle('light', themeToggle.checked);
-  const label = themeToggle.closest('.toggle-wrap').querySelector('.toggle-label');
-  label.textContent = themeToggle.checked ? 'Light' : 'Dark';
+  themeToggle.closest('.toggle-wrap').querySelector('.toggle-label').textContent =
+    themeToggle.checked ? 'Light' : 'Dark';
   localStorage.setItem('ns-bbcode-theme', themeToggle.checked ? 'light' : 'dark');
 });
 
 /* ================================================================
    9. DRAG-TO-RESIZE PANES
    ================================================================ */
-const resizer    = $('resizer');
-const paneEditor = document.querySelector('.pane-editor');
-const panePreview = document.querySelector('.pane-preview');
-const workspace  = document.querySelector('.workspace');
 
+const resizer     = $('resizer');
+const paneEditor  = document.querySelector('.pane-editor');
+const panePreview = document.querySelector('.pane-preview');
+const workspace   = document.querySelector('.workspace');
 let isResizing = false;
 
 resizer.addEventListener('mousedown', e => {
   isResizing = true;
   resizer.classList.add('dragging');
-  document.body.style.cursor = 'col-resize';
+  document.body.style.cursor     = 'col-resize';
   document.body.style.userSelect = 'none';
   e.preventDefault();
 });
-
 document.addEventListener('mousemove', e => {
   if (!isResizing) return;
   const rect  = workspace.getBoundingClientRect();
-  const total = rect.width - resizer.offsetWidth;
   let left = e.clientX - rect.left;
-  left = Math.max(200, Math.min(total - 200, left));
+  left = Math.max(200, Math.min(rect.width - resizer.offsetWidth - 200, left));
   paneEditor.style.flex  = 'none';
   paneEditor.style.width = left + 'px';
   panePreview.style.flex  = '1';
   panePreview.style.width = '';
 });
-
 document.addEventListener('mouseup', () => {
   if (!isResizing) return;
   isResizing = false;
   resizer.classList.remove('dragging');
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
+  document.body.style.cursor = document.body.style.userSelect = '';
 });
 
 /* ================================================================
    10. STATUS / TOAST HELPERS
    ================================================================ */
+
 let statusTimer = null;
 function setStatus(msg) {
   statusMsg.textContent = msg;
@@ -826,67 +751,46 @@ function showToast(msg) {
 /* ================================================================
    11. EDITOR INPUT HANDLER
    ================================================================ */
-editor.addEventListener('input', () => {
-  triggerUpdate();
-  scheduleHistoryPush();
-});
+
+editor.addEventListener('input', () => { triggerUpdate(); scheduleHistoryPush(); });
 
 /* ================================================================
    12. KEYBOARD SHORTCUTS (global)
    ================================================================ */
+
 document.addEventListener('keydown', e => {
   if (!e.ctrlKey && !e.metaKey) return;
-  // Don't intercept when modal is open
   if (!modalOverlay.classList.contains('hidden')) return;
-
-  const shortcuts = {
-    's': () => { $('btn-export').click(); },
-    'o': () => { $('btn-import').click(); },
-    'd': () => { $('btn-copy').click(); },
-    'k': () => { $('btn-url').click(); },
-  };
-  if (shortcuts[e.key]) {
-    e.preventDefault();
-    shortcuts[e.key]();
-  }
-
-  // Inline formatting shortcuts (only when editor has focus)
+  const global = { s: 'btn-export', o: 'btn-import', d: 'btn-copy', k: 'btn-url' };
+  if (global[e.key]) { e.preventDefault(); $(global[e.key]).click(); return; }
   if (document.activeElement !== editor) return;
-  const fmtShortcuts = {
-    'b': 'b',
-    'i': 'i',
-    'u': 'u',
-  };
-  if (fmtShortcuts[e.key]) {
+  if ('biu'.includes(e.key)) {
     e.preventDefault();
-    wrapSelection(`[${fmtShortcuts[e.key]}]`, `[/${fmtShortcuts[e.key]}]`);
+    wrapSelection(`[${e.key}]`, `[/${e.key}]`);
   }
 });
 
 /* ================================================================
    13. PERSIST CONTENT IN localStorage
    ================================================================ */
-const STORAGE_KEY = 'ns-bbcode-content-v4';
+
+const STORAGE_KEY = 'ns-bbcode-content-v5';
 
 function saveToStorage() {
   try { localStorage.setItem(STORAGE_KEY, editor.value); } catch (_) {}
 }
-
 function loadFromStorage() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      editor.value = saved;
-      history.push(saved);
-    }
+    if (saved) { editor.value = saved; history.push(saved); }
   } catch (_) {}
 }
-
 editor.addEventListener('input', saveToStorage);
 
 /* ================================================================
    14. INITIALISATION
    ================================================================ */
+
 (function init() {
   // Restore theme
   const savedTheme = localStorage.getItem('ns-bbcode-theme');
@@ -904,7 +808,7 @@ editor.addEventListener('input', saveToStorage);
   // Restore content
   loadFromStorage();
 
-  // Seed with example dispatch if storage is empty
+  // Seed example if empty
   if (!editor.value) {
     editor.value = [
       '[align=center][size=200][b]BBCode Editor[/b][/size][/align]',
@@ -913,51 +817,42 @@ editor.addEventListener('input', saveToStorage);
       '',
       '[size=150][b]Text formatting[/b][/size]',
       '',
-      'Mix and match as needed: [b]bold[/b], [i]italic[/i], [u]underlined[/u], [strike]strikethrough[/strike].',
-      'Go smaller with subscripts — H[sub]2[/sub]O — or higher with superscripts — x[sup]2[/sup].',
+      'Mix and match: [b]bold[/b], [i]italic[/i], [u]underlined[/u], [strike]strikethrough[/strike].',
+      'Subscripts — H[sub]2[/sub]O — and superscripts — x[sup]2[/sup].',
       '',
-      '[size=150][b]Colour & font[/b][/size]',
+      '[size=150][b]Colour[/b][/size]',
       '',
-      '[color=#e74c3c]This is red.[/color]  [color=#2ecc71]This is green.[/color]  [color=#3498db]This is blue.[/color]',
-      '[background=#f39c12][color=#1a2035]Highlighted with a background colour.[/color][/background]',
+      '[color=#e74c3c]Red.[/color]  [color=#2ecc71]Green.[/color]  [color=#3498db]Blue.[/color]',
+      '[background=#f39c12][color=#1a2035]Text with a background highlight.[/color][/background]',
       '',
-      '[font=Georgia][i]This sentence is set in Georgia — a classic serif.[/i][/font]',
-      '[font=Courier New]This one uses Courier New — good for code or transmissions.[/font]',
-      '',
-      '[size=150][b]Size & alignment[/b][/size]',
+      '[size=150][b]Size[/b][/size]',
       '',
       '[size=175]Larger text.[/size]  [size=75]Smaller text.[/size]',
       '',
-      '[align=left]Left-aligned paragraph.[/align]',
-      '[align=center]Centred paragraph.[/align]',
-      '[align=right]Right-aligned paragraph.[/align]',
+      '[size=150][b]Alignment[/b][/size]',
       '',
-      '[size=150][b]Boxes & callouts[/b][/size]',
+      '[align=left]Left.[/align]',
+      '[align=center]Centre.[/align]',
+      '[align=right]Right.[/align]',
+      '',
+      '[size=150][b]Blocks[/b][/size]',
       '',
       '[box]',
-      'This is a [b]box[/b]. Good for notices, tips, or anything you want to set apart from the body text.',
+      'A [b]box[/b] sets content apart. Good for notices or callouts.',
       '[/box]',
       '',
-      '[sidebar]',
-      '[b]Sidebar[/b][br]Floats to the right, like a pull-quote or a quick-info panel. The main body text wraps around it naturally.',
-      '[/sidebar]',
-      'A sidebar sits to the right and lets body text flow around it.',
-      'It behaves like a floating box — useful for asides, stats, or short notes',
-      'that complement the main content without breaking its flow.',
-      '',
       '[quote=Someone]',
-      'A quote block attributes the text to its author and visually separates it from your writing.',
+      'A quote block attributes text to its author.',
       '[/quote]',
       '',
-      '[spoiler=Reveal this section]',
-      'The content inside a spoiler is hidden until the reader clicks the label.',
-      'Nest any other tags inside — [b]bold[/b], [color=#3498db]colour[/color], tables, lists, anything.',
+      '[spoiler=Reveal]',
+      'Hidden until clicked. Nest [b]bold[/b], [color=#3498db]colour[/color], anything inside.',
       '[/spoiler]',
       '',
       '[size=150][b]Lists[/b][/size]',
       '',
       '[list]',
-      '[*]First bullet item',
+      '[*]First item',
       '[*][b]Bold[/b] second item',
       '[*][i]Italic[/i] third item',
       '[/list]',
@@ -965,7 +860,7 @@ editor.addEventListener('input', saveToStorage);
       '[list=1]',
       '[*]Step one',
       '[*]Step two',
-      '[*]Step [color=#2ecc71]three — done[/color]',
+      '[*][color=#2ecc71]Step three — done[/color]',
       '[/list]',
       '',
       '[size=150][b]Tables[/b][/size]',
@@ -977,18 +872,16 @@ editor.addEventListener('input', saveToStorage);
       '[tr][td]Gamma[/td][td]Reserve[/td][td][color=#e74c3c]Offline[/color][/td][/tr]',
       '[/table]',
       '',
-      '[size=150][b]Links & media[/b][/size]',
+      '[size=150][b]Links[/b][/size]',
       '',
-      'A plain link: [url=https://www.example.com]visit example.com[/url]',
-      'An image: [img]https://via.placeholder.com/300x80/1a2035/c9a84c?text=Image+preview[/img]',
+      '[url=https://www.example.com]Visit example.com[/url]',
       '',
       '[hr]',
-      '[align=center][color=#5a6a8a][size=85]Delete all of this and start writing your own content.[/size][/color][/align]',
+      '[align=center][color=#5a6a8a][size=85]Delete this and start writing.[/size][/color][/align]',
     ].join('\n');
     history.push(editor.value);
   }
 
-  // Initial render
   renderPreview();
   updateCounts();
   setStatus('Ready');

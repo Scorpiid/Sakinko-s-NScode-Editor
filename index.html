@@ -17,11 +17,11 @@
       <span class="topbar-title">Sakinko´s Editor</span>
     </div>
     <div class="topbar-actions">
-      <button id="btn-new"     class="btn btn-ghost" title="New document">New</button>
-      <button id="btn-copy"    class="btn btn-ghost" title="Copy raw BBCode">Copy BBCode</button>
-      <button id="btn-import"  class="btn btn-ghost" title="Import BBCode from file">Import</button>
-      <button id="btn-export"  class="btn btn-ghost" title="Save as .txt">Export</button>
-      <input  id="file-input"  type="file" accept=".txt" style="display:none" />
+      <button id="btn-new"    class="btn btn-ghost" title="New document">New</button>
+      <button id="btn-copy"   class="btn btn-ghost" title="Copy raw BBCode">Copy BBCode</button>
+      <button id="btn-import" class="btn btn-ghost" title="Import BBCode from file">Import</button>
+      <button id="btn-export" class="btn btn-ghost" title="Save as .txt">Export</button>
+      <input  id="file-input" type="file" accept=".txt" style="display:none" />
       <label class="toggle-wrap" title="Toggle dark / light theme">
         <input type="checkbox" id="theme-toggle" />
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -44,59 +44,23 @@
   ══════════════════════════════════════════════════════════════════ -->
   <div class="toolbar" id="toolbar">
 
-    <!-- ── Text Formatting ───────────────────────────────────────── -->
+    <!-- ── Basic inline ──────────────────────────────────────────── -->
     <div class="toolbar-group">
-      <span class="toolbar-group-label">Format</span>
+      <span class="toolbar-group-label">Text</span>
       <button class="tb-btn" data-tag="b"      title="Bold [b]"><b>B</b></button>
       <button class="tb-btn" data-tag="i"      title="Italic [i]"><i>I</i></button>
       <button class="tb-btn" data-tag="u"      title="Underline [u]"><u>U</u></button>
       <button class="tb-btn" data-tag="strike" title="Strikethrough [strike]"><s>S</s></button>
       <button class="tb-btn" data-tag="sup"    title="Superscript [sup]">x²</button>
       <button class="tb-btn" data-tag="sub"    title="Subscript [sub]">x₂</button>
-      <button class="tb-btn" data-tag="pre"    title="Preformatted [pre]">PRE</button>
-      <button class="tb-btn forum-only" data-tag="code" title="Code block [code] — forum only">Code</button>
     </div>
 
     <div class="toolbar-sep"></div>
 
-    <!-- ── Size & Font ───────────────────────────────────────────── -->
+    <!-- ── Size ──────────────────────────────────────────────────── -->
     <div class="toolbar-group">
-      <span class="toolbar-group-label">Size &amp; Font</span>
-      <button class="tb-btn tb-prompt" data-tag="size" data-prompt="Font size (% of base, e.g. 150)" data-default="150" title="Text size [size=N]">Size</button>
-      <div class="font-picker-wrap" title="Font [font=name]">
-        <select id="font-select" class="tb-select" title="Choose a font">
-          <option value="">Font…</option>
-          <optgroup label="Sans-serif">
-            <option value="Verdana">Verdana</option>
-            <option value="Arial">Arial</option>
-            <option value="Helvetica">Helvetica</option>
-            <option value="Trebuchet MS">Trebuchet MS</option>
-            <option value="Tahoma">Tahoma</option>
-            <option value="Geneva">Geneva</option>
-            <option value="Calibri">Calibri</option>
-            <option value="Segoe UI">Segoe UI</option>
-          </optgroup>
-          <optgroup label="Serif">
-            <option value="Georgia">Georgia</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Palatino">Palatino</option>
-            <option value="Garamond">Garamond</option>
-            <option value="Book Antiqua">Book Antiqua</option>
-          </optgroup>
-          <optgroup label="Monospace">
-            <option value="Courier New">Courier New</option>
-            <option value="Lucida Console">Lucida Console</option>
-            <option value="Consolas">Consolas</option>
-          </optgroup>
-          <optgroup label="Display / Decorative">
-            <option value="Impact">Impact</option>
-            <option value="Comic Sans MS">Comic Sans MS</option>
-            <option value="Papyrus">Papyrus</option>
-            <option value="Copperplate">Copperplate</option>
-            <option value="Brush Script MT">Brush Script MT</option>
-          </optgroup>
-        </select>
-      </div>
+      <span class="toolbar-group-label">Size</span>
+      <button class="tb-btn tb-prompt" data-tag="size" data-prompt="Size % (e.g. 150 = large, 75 = small)" data-default="150" title="Text size [size=N]">Normal</button>
     </div>
 
     <div class="toolbar-sep"></div>
@@ -104,7 +68,7 @@
     <!-- ── Colour ────────────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Colour</span>
-      <span class="color-picker-wrap" title="Text colour [color=…]">
+      <span class="color-picker-wrap" title="Font colour [color=…]">
         <label class="tb-btn color-btn" for="pick-color">A</label>
         <input type="color" id="pick-color" value="#ff0000" />
       </span>
@@ -112,7 +76,8 @@
         <label class="tb-btn color-btn bg-btn" for="pick-bg">H</label>
         <input type="color" id="pick-bg" value="#ffff00" />
       </span>
-      <span class="color-picker-wrap" title="Block background [background-block=…]">
+      <!-- Block background — dispatch only -->
+      <span class="color-picker-wrap dispatch-only" title="Block background [background-block=…]">
         <label class="tb-btn color-btn block-btn" for="pick-block">BG</label>
         <input type="color" id="pick-block" value="#1a1a2e" />
       </span>
@@ -123,31 +88,20 @@
     <!-- ── Alignment ─────────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Align</span>
-      <button class="tb-btn" data-wrap="[align=left]" data-wrapclose="[/align]"  title="Align left">⇤</button>
-      <button class="tb-btn" data-wrap="[align=center]" data-wrapclose="[/align]" title="Centre">⇔</button>
-      <button class="tb-btn" data-wrap="[align=right]" data-wrapclose="[/align]"  title="Align right">⇥</button>
+      <button class="tb-btn" data-wrap="[align=left]"    data-wrapclose="[/align]" title="Align left">⇤</button>
+      <button class="tb-btn" data-wrap="[align=center]"  data-wrapclose="[/align]" title="Centre">⇔</button>
+      <button class="tb-btn" data-wrap="[align=right]"   data-wrapclose="[/align]" title="Align right">⇥</button>
       <button class="tb-btn" data-wrap="[align=justify]" data-wrapclose="[/align]" title="Justify">≡</button>
     </div>
 
     <div class="toolbar-sep"></div>
 
-    <!-- ── Float & Indent ────────────────────────────────────────── -->
-    <div class="toolbar-group dispatch-only">
-      <span class="toolbar-group-label">Float</span>
-      <button class="tb-btn" data-wrap="[floatleft]"  data-wrapclose="[/floatleft]"  title="Float left [floatleft]">◧</button>
-      <button class="tb-btn" data-wrap="[floatright]" data-wrapclose="[/floatright]" title="Float right [floatright]">◨</button>
-      <button class="tb-btn tb-prompt" data-tag="tab" data-prompt="Indent pixels (e.g. 30)" data-default="30" title="Tab indent [tab=N]">⇥Tab</button>
-    </div>
-
-    <div class="toolbar-sep dispatch-only"></div>
-
-    <!-- ── Headings ──────────────────────────────────────────────── -->
+    <!-- ── Misc inline ───────────────────────────────────────────── -->
     <div class="toolbar-group">
-      <span class="toolbar-group-label">Headings</span>
-      <button class="tb-btn" data-wrap="[size=200][b]" data-wrapclose="[/b][/size]" title="Heading 1">H1</button>
-      <button class="tb-btn" data-wrap="[size=150][b]" data-wrapclose="[/b][/size]" title="Heading 2">H2</button>
-      <button class="tb-btn" data-wrap="[size=125][b]" data-wrapclose="[/b][/size]" title="Heading 3">H3</button>
+      <span class="toolbar-group-label">Misc</span>
       <button class="tb-btn" data-tag="hr" data-selfclose="true" title="Horizontal rule [hr]">HR</button>
+      <button class="tb-btn" data-tag="pre" title="Preformatted [pre]">PRE</button>
+      <button class="tb-btn forum-only" data-tag="code" title="Code block [code] — forum only">Code</button>
     </div>
 
     <div class="toolbar-sep"></div>
@@ -155,41 +109,50 @@
     <!-- ── Links & Media ─────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Link &amp; Media</span>
-      <button class="tb-btn" id="btn-url"    title="Insert link [url=…]">URL</button>
-      <button class="tb-btn" id="btn-img"    title="Insert image [img]">IMG</button>
-      <button class="tb-btn dispatch-only tb-prompt" data-tag="anchor" data-prompt="Anchor name" data-default="section1" title="Anchor [anchor=name] — dispatch only">⚓</button>
+      <button class="tb-btn" id="btn-url" title="Insert link [url=…]">URL</button>
+      <button class="tb-btn" id="btn-img" title="Insert image [img]">IMG</button>
     </div>
 
     <div class="toolbar-sep"></div>
 
-    <!-- ── NS-Specific ───────────────────────────────────────────── -->
+    <!-- ── Blocks ────────────────────────────────────────────────── -->
+    <div class="toolbar-group">
+      <span class="toolbar-group-label">Blocks</span>
+      <button class="tb-btn dispatch-only" data-tag="box"     title="Box [box] — dispatch only">Box</button>
+      <button class="tb-btn" id="btn-quote"                   title="Quote [quote=…]">Quote</button>
+      <button class="tb-btn" id="btn-spoiler"                 title="Spoiler [spoiler]">Spoiler</button>
+    </div>
+
+    <div class="toolbar-sep"></div>
+
+    <!-- ── Float & Tab — dispatch only ──────────────────────────── -->
     <div class="toolbar-group dispatch-only">
-      <span class="toolbar-group-label">NS Links</span>
-      <button class="tb-btn" id="btn-nation"     title="Wrap selection as Nation link [nation]…[/nation]">Nation</button>
-      <button class="tb-btn" id="btn-region"     title="Wrap selection as Region link [region]…[/region]">Region</button>
-      <button class="tb-btn tb-prompt" data-tag="proposal"   data-prompt="Proposal ID" data-default=""  title="WA Proposal [proposal]">Prop</button>
-      <button class="tb-btn tb-prompt" data-tag="resolution" data-prompt="Resolution (e.g. GA#1)" data-default="" title="WA Resolution [resolution]">Res</button>
+      <span class="toolbar-group-label">Float</span>
+      <button class="tb-btn" data-wrap="[floatleft]"  data-wrapclose="[/floatleft]"  title="Float left [floatleft]">◧ Left</button>
+      <button class="tb-btn" data-wrap="[floatright]" data-wrapclose="[/floatright]" title="Float right [floatright]">◨ Right</button>
+      <button class="tb-btn tb-prompt" data-tag="tab" data-prompt="Indent pixels (e.g. 30)" data-default="30" title="Tab indent [tab=N]">Tab=</button>
     </div>
 
     <div class="toolbar-sep dispatch-only"></div>
 
-    <!-- ── Boxes & Quotes ────────────────────────────────────────── -->
-    <div class="toolbar-group">
-      <span class="toolbar-group-label">Blocks</span>
-      <button class="tb-btn dispatch-only" data-tag="box"     title="Box [box] — dispatch only">□ Box</button>
-      <button class="tb-btn dispatch-only" data-tag="sidebar" title="Sidebar [sidebar] — dispatch only">│ Side</button>
-      <button class="tb-btn" id="btn-quote"     title="Quote [quote=…]">❝ Quote</button>
-      <button class="tb-btn" id="btn-spoiler"   title="Spoiler [spoiler=…]">▶ Spoiler</button>
+    <!-- ── NS Links — dispatch only ──────────────────────────────── -->
+    <div class="toolbar-group dispatch-only">
+      <span class="toolbar-group-label">NS Links</span>
+      <button class="tb-btn" id="btn-nation"                                                              title="Nation link [nation]">Nation</button>
+      <button class="tb-btn" id="btn-region"                                                              title="Region link [region]">Region</button>
+      <button class="tb-btn" data-wrap="[region-tag]"  data-wrapclose="[/region-tag]"                    title="Region tag [region-tag]">R-Tag</button>
+      <button class="tb-btn tb-prompt" data-tag="region-tag" data-prompt="Region name" data-default=""   title="Region tag with name [region-tag=name]" id="btn-region-tag-param">R-Tag=</button>
+      <button class="tb-btn tb-prompt" data-tag="proposal"   data-prompt="Proposal ID" data-default=""   title="WA Proposal [proposal=id]">Prop=</button>
     </div>
 
-    <div class="toolbar-sep"></div>
+    <div class="toolbar-sep dispatch-only"></div>
 
     <!-- ── Lists ─────────────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Lists</span>
-      <button class="tb-btn" id="btn-ul"    title="Bullet list [list]">• List</button>
-      <button class="tb-btn" id="btn-ol"    title="Numbered list [list=1]">1. List</button>
-      <button class="tb-btn" data-wrap="[*]" data-wrapclose="" title="List item [*]">[*]</button>
+      <button class="tb-btn" id="btn-ul"                          title="Bullet list [list]">List</button>
+      <button class="tb-btn" id="btn-ol"                          title="Numbered list [list=1]">List=</button>
+      <button class="tb-btn" data-wrap="[*]" data-wrapclose=""    title="List item [*]">[*]</button>
     </div>
 
     <div class="toolbar-sep"></div>
@@ -197,10 +160,9 @@
     <!-- ── Tables ────────────────────────────────────────────────── -->
     <div class="toolbar-group">
       <span class="toolbar-group-label">Table</span>
-      <button class="tb-btn" id="btn-table"  title="Insert table scaffold">⊞ Table</button>
-      <button class="tb-btn" data-wrap="[tr]" data-wrapclose="[/tr]"  title="Table row [tr]">TR</button>
-      <button class="tb-btn" data-wrap="[td]" data-wrapclose="[/td]"  title="Table cell [td]">TD</button>
-      <button class="tb-btn" data-wrap="[th]" data-wrapclose="[/th]"  title="Table header [th]">TH</button>
+      <button class="tb-btn" id="btn-table"                        title="Insert table scaffold">Table</button>
+      <button class="tb-btn" data-wrap="[tr]" data-wrapclose="[/tr]" title="Table row [tr]">TR</button>
+      <button class="tb-btn" data-wrap="[td]" data-wrapclose="[/td]" title="Table cell [td]">TD</button>
     </div>
 
   </div><!-- /toolbar -->
@@ -210,24 +172,21 @@
   ══════════════════════════════════════════════════════════════════ -->
   <main class="workspace">
 
-    <!-- ── Left: editor ───────────────────────────────────────────── -->
     <section class="pane pane-editor">
       <div class="pane-header">
         <span class="pane-title">BBCode <span class="mode-badge" id="editor-mode-badge">Dispatch</span></span>
         <div class="pane-header-right">
           <span id="char-count" class="char-count">0 chars</span>
-          <button class="btn btn-xs" id="btn-undo" title="Undo">↩</button>
-          <button class="btn btn-xs" id="btn-redo" title="Redo">↪</button>
+          <button class="btn btn-xs" id="btn-undo"  title="Undo">↩</button>
+          <button class="btn btn-xs" id="btn-redo"  title="Redo">↪</button>
           <button class="btn btn-xs" id="btn-clear" title="Clear all">✕</button>
         </div>
       </div>
-      <textarea id="editor" spellcheck="false" placeholder="Start typing your dispatch here…"></textarea>
+      <textarea id="editor" spellcheck="false" placeholder="Start typing your BBCode here…"></textarea>
     </section>
 
-    <!-- ── Resizer handle ─────────────────────────────────────────── -->
     <div class="resizer" id="resizer" title="Drag to resize"></div>
 
-    <!-- ── Right: preview ─────────────────────────────────────────── -->
     <section class="pane pane-preview">
       <div class="pane-header">
         <span class="pane-title">Preview</span>
@@ -257,7 +216,7 @@
   </footer>
 
   <!-- ══════════════════════════════════════════════════════════════
-       MODAL (colour / prompt dialogs)
+       MODAL
   ══════════════════════════════════════════════════════════════════ -->
   <div id="modal-overlay" class="modal-overlay hidden">
     <div class="modal-box">

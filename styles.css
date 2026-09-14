@@ -570,6 +570,17 @@ body.mode-dispatch .mode-badge { background: var(--ns-accent); color: #fff; }
   text-decoration: none;
 }
 .ns-content .ns-region::before { content: '🗺️ '; font-size: 0.85em; }
+.ns-content .ns-region-tag {
+  display: inline-block;
+  background: rgba(201,168,76,0.15);
+  border: 1px solid var(--ns-gold);
+  border-radius: 3px;
+  color: var(--ns-gold-light);
+  font-size: 0.88em;
+  font-weight: 700;
+  padding: 1px 7px;
+  letter-spacing: 0.04em;
+}
 .ns-content .ns-proposal, .ns-content .ns-resolution {
   color: var(--ns-gold-light);
   font-weight: 600;
