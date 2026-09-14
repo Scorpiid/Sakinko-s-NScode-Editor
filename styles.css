@@ -709,6 +709,19 @@ body.mode-dispatch .mode-badge { background: var(--ns-accent); color: #fff; }
   margin: 4px 0;
 }
 
+/* Unsupported tags in forum preview — shown as raw code */
+.ns-content .ns-unsupported {
+  font-family: var(--editor-font);
+  font-size: 0.88em;
+  color: #e07b54;
+  background: rgba(224, 123, 84, 0.1);
+  border: 1px dashed rgba(224, 123, 84, 0.4);
+  border-radius: 3px;
+  padding: 0 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 /* Anchor targets */
 .ns-content .ns-anchor { scroll-margin-top: 10px; }
 

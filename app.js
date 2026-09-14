@@ -196,23 +196,32 @@ function bbcodeDispatchToHtml(raw) {
 function bbcodeForumToHtml(raw) {
   let s = escapeInput(raw);
 
-  // Strip dispatch-only tags completely (leave inner text where it makes sense)
-  // Tags with meaningful inner content — keep the text, drop the tag
-  s = s.replace(/\[hr\]/gi,                                                         '');
-  s = s.replace(/\[size=\d+\]([\s\S]*?)\[\/size\]/gi,                          '$1');
-  s = s.replace(/\[font=[^\]]+\]([\s\S]*?)\[\/font\]/gi,                        '$1');
-  s = s.replace(/\[background-block=[^\]]+\]([\s\S]*?)\[\/background-block\]/gi,'$1');
-  s = s.replace(/\[floatleft\]([\s\S]*?)\[\/floatleft\]/gi,                     '$1');
-  s = s.replace(/\[floatright\]([\s\S]*?)\[\/floatright\]/gi,                   '$1');
-  s = s.replace(/\[tab(?:=\d+)?\]([\s\S]*?)\[\/tab\]/gi,                       '$1');
-  s = s.replace(/\[box\]([\s\S]*?)\[\/box\]/gi,                                 '$1');
-  s = s.replace(/\[sidebar\]([\s\S]*?)\[\/sidebar\]/gi,                         '$1');
-  s = s.replace(/\[nation(?:=[^\]]+)?\]([\s\S]*?)\[\/nation\]/gi,               '$1');
-  s = s.replace(/\[region(?:=[^\]]+)?\]([\s\S]*?)\[\/region\]/gi,               '$1');
-  s = s.replace(/\[region-tag(?:=[^\]]+)?\]([\s\S]*?)\[\/region-tag\]/gi,       '$1');
-  s = s.replace(/\[proposal(?:=[^\]]+)?\]([\s\S]*?)\[\/proposal\]/gi,           '$1');
-  s = s.replace(/\[anchor(?:=[^\]]+)?\]([\s\S]*?)\[\/anchor\]/gi,               '$1');
-  s = s.replace(/\[anchor=[^\]]+\]/gi,                                           '');
+  // Dispatch-only tags: render as literal raw BBCode text so the user
+  // can see exactly what the forum won't process.
+  // At this point `s` is already HTML-escaped, so brackets are literal
+  // characters — we just wrap the whole match in a styled span.
+  const wrapUnsupported = (match) =>
+    `<span class="ns-unsupported">${match}</span>`;
+
+  // Self-closing dispatch tags
+  s = s.replace(/\[hr\]/gi, wrapUnsupported);
+
+  // Paired dispatch tags (with optional =param)
+  const dispatchPaired = [
+    'size', 'font', 'background-block',
+    'floatleft', 'floatright',
+    'tab', 'box', 'sidebar',
+    'nation', 'region', 'region-tag',
+    'proposal', 'anchor',
+  ];
+  dispatchPaired.forEach(tag => {
+    // Matches [tag], [tag=value], [tag=value]...[/tag]
+    const re = new RegExp(
+      `\\[${tag}(?:=[^\\]]+)?\\][\\s\\S]*?\\[\\/${tag}\\]|\\[${tag}(?:=[^\\]]+)?\\]`,
+      'gi'
+    );
+    s = s.replace(re, wrapUnsupported);
+  });
 
   // Protect [code] blocks
   const codeBlocks = [];
